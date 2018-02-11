@@ -1,69 +1,79 @@
-let mobileNumbers = [
-  {
-    name: 'Arto Hellas',
-    number: '040-123456',
-    id: 1,
-  },
-  {
-    name: 'Martti Tienari',
-    number: '040-123456',
-    id: 2,
-  },
-  {
-    name: 'Arto Järvinen',
-    number: '040-123456',
-    id: 3,
-  },
-  {
-    name: 'Lea Kutvonen',
-    number: '040-123456',
-    id: 4,
-  },
-];
+const mongoose = require('mongoose');
 
-const generateId = () => Math.floor(Number.MAX_SAFE_INTEGER * Math.random());
+const { MONGO_PATH } = process.env;
 
-const allPersons = () => mobileNumbers;
+const personSchema = new mongoose.Schema({
+  name: String,
+  number: String,
+});
+
+personSchema.statics.format = (person) => {
+  const { number, name, _id } = person;
+
+  return {
+    number,
+    name,
+    id: _id,
+  };
+};
+
+const Person = mongoose.model('person', personSchema);
+
+mongoose.connect(MONGO_PATH).then(() => {
+  console.log('connected to mongodb');
+}, e => console.error(e));
+
+const allPersons = () => {
+  return Person.find().then(persons => persons.map(Person.format));
+};
 
 const findById = (id) => {
-  const numId = parseInt(id, 10);
-  return mobileNumbers.find(p => p.id === numId);
+  return Person.findById(id).then(p => Person.format(p));
+};
+
+const updateById = (id, name, number) => {
+  if (!name || !number) {
+    Promise.reject(new Error('name or number invalid'));
+  }
+
+  return Person
+    .findByIdAndUpdate(id, { name, number })
+    .then(updated => updated);
 };
 
 const deleteById = (id) => {
-  const person = findById(id);
+  return findById(id).then((person) => {
+    return Person.findByIdAndRemove(person.id);
+  }).catch((e) => {
+    console.error(e.message);
 
-  if (!person) {
     throw new Error(`cannot find person with id ${id}`);
-  }
-
-  mobileNumbers = mobileNumbers.filter(p => p.id !== person.id);
-
-  return person;
+  });
 };
 
 const addOne = (name, number) => {
-  if (!name || !number) {
-    throw new Error('name or number invalid');
-  }
-
-  const oldPerson = mobileNumbers
-    .find(p => p.name.toLowerCase() === name.toLowerCase());
-
-  if (oldPerson) {
-    throw new Error('name must be unique');
-  }
-
-  const newPerson = {
+  const newPerson = new Person({
     name,
     number,
-    id: generateId(),
-  };
+  });
 
-  mobileNumbers = mobileNumbers.concat(newPerson);
+  return Person.findOne({ name }).then((oldPerson) => {
+    if (!name || !number) {
+      throw new Error('name or number invalid');
+    }
+
+    if (oldPerson) {
+      throw new Error('name must be unique');
+    }
+  }).then(() => {
+    return newPerson.save(newPerson);
+  }).catch((e) => {
+    console.error(e.message);
+    throw new Error(e.message);
+  });
 };
 
 
 module.exports = {
-  findById, addOne, deleteById, allPersons,
+  findById, addOne, deleteById, allPersons, updateById,
 };

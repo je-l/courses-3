@@ -4,7 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 
 const {
-  allPersons, addOne, findById, deleteById,
+  allPersons, addOne, findById, deleteById, updateById,
 } = require('./src/person');
 
 const app = express();
@@ -27,45 +27,52 @@ const infoMessage = (numbers, date) => [
 ].join('\n');
 
 app.get(`${base}/persons`, (req, res) => {
-  res.json(allPersons());
+  allPersons().then(persons => res.json(persons));
 });
 
 app.delete(`${base}/persons/:id`, (req, res) => {
-  try {
-    deleteById(req.params.id);
-  } catch (e) {
+  deleteById(req.params.id).then(() => {
+    res.status(200).end('200');
+  }).catch((e) => {
     res.status(400).json({ error: e.message });
-  }
+  });
+});
 
-  res.status(200).end('200');
+app.put(`${base}/persons/:id`, (req, res) => {
+  const { name, number } = req.body;
+  updateById(req.params.id, name, number).then(() => {
+    res.status(200).end('200');
+  }).catch((e) => {
+    res.status(400).json({ error: e.message });
+  });
 });
 
 app.post(`${base}/persons`, (req, res) => {
   const { name, number } = req.body;
 
-  try {
-    addOne(name, number);
-  } catch (e) {
+  addOne(name, number).then(() => {
+    res.status(200).end('200');
+  }).catch((e) => {
     res.status(400).json({ error: e.message });
-    return;
-  }
-
-  res.status(200).end('200');
+  });
 });
 
 app.get(`${base}/persons/:id`, (req, res) => {
-  const person = findById(req.params.id);
-
-  if (!person) {
+  findById(req.params.id).then((person) => {
+    res.json(person);
+  }).catch(() => {
     res.status(404).end('404');
-    return;
-  }
-
-  res.json(person);
+  });
 });
 
 app.get('/info', (req, res) => {
-  res.end(infoMessage(allPersons(), new Date()));
+  allPersons().then((people) => {
+    res.end(infoMessage(people, new Date()));
+  }).catch((e) => {
+    console.error(e);
+  });
 });
 
-app.listen(process.env.PORT || 3001, () => console.log('server listening'));
+const listener = app.listen(process.env.PORT || 3001, () => {
+  console.log('server started at port', listener.address().port);
+});
